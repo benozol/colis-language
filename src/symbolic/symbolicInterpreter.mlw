@@ -1,13 +1,18 @@
 module Constraints
 
-  type clause
-  type disj
   type variable
-  type feature
+  (** abstract type for variables denoting nodes in the file system *)
 
-  val constant empty_clause : clause
-  val function sat disj : bool
-  val constant default_root : variable
+  type feature
+  (** abstract type for filenames (excluding "." and ".."), named
+      "feature" in the tree constraint vocabulary *)
+
+  type constraint
+  (** abstract type for tree constraints, [IMPORTANT] which are always satisfiable *)
+
+  val constant c_true : constraint
+  (** the empty constraint, denoting all possible trees *)
+
 end
 
 module Definitions
@@ -15,7 +20,7 @@ module Definitions
   use list.List
   use set.Fset
   use bool.Bool
- 
+
   use mystring.String
   use syntax.Syntax
   use semantics.Environment
@@ -25,7 +30,7 @@ module Definitions
   (** A symbolic filesystem *)
   type filesystem = {
     root : variable;
-    clause : clause;
+    clause : constraint;
     cwd : list feature;
   }
 
@@ -37,8 +42,8 @@ module Definitions
     result: bool;
   }
 
-  let function empty_state = {
-    filesystem = {root = default_root; cwd = Nil; clause = empty_clause};
+  let function mk_state (r : variable) = {
+    filesystem = {root = r; cwd = Nil; clause = c_true};
     stdout = empty_stdout;
     stdin = empty_stdin;
     venv = empty_env;
