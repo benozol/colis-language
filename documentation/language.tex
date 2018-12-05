@@ -1,0 +1,162 @@
+\documentclass{scrartcl}
+\usepackage{tabto}
+\usepackage{syntax}
+\usepackage{tabto}
+\usepackage{amsmath,amssymb}
+\usepackage{mathpartir}
+
+\newcommand{\get}[2]{#1[{\textsf{#2}}]}
+\newcommand{\set}[3]{#1[{\textsf{#2}\,{\gets}\,#3}]}
+\newcommand{\inp}{\mathcal I}
+\newcommand{\ctx}{\mathcal C}
+\newcommand{\sta}{\mathcal S}
+\newcommand{\bhv}{\beta}%{\textit{bhv}}
+\newcommand{\bnormal}{\textsf{Normal}}
+\newcommand{\breturn}{\textsf{Return}}
+\newcommand{\bexit}{\textsf{Exit}}
+\newcommand{\bool}{\textit{bool}}
+\newcommand{\eval}[7]{(#1,#2,#3)\,#4\Downarrow (#5,#6)\,#7}
+\newcommand{\evalwhile}[9]{#1\,(#2,#3,#4)\,#5\,#6\Downarrow^f (#7,#8)\,#9}
+\newcommand{\evalforeach}[1]{\def\tmp1{#1}\evalforeachcontinued}
+\newcommand{\evalforeachcontinued}[9]{\tmp1\,(#1,#2,#3)\,#4\,#5\,#6\Downarrow^w (#7,#8)\,#9}
+\newcommand{\evallist}[6]{(#1,#2,#3)\,#4\Downarrow^l #5, #6}
+\newcommand{\evalstring}[8]{#1\,(#2,#3,#4)\,#5\Downarrow^s #6, #7, #8}
+\newcommand{\func}[1]{\textit{#1}}
+
+\newcommand{\astcomment}[1]{\emph{\hfill --- #1}} % \tabto{.6\textwidth}
+\newcommand{\mathcomment}[1]{\text{--- #1}}
+
+\title{CoLiS language v2}
+
+\begin{document}
+
+\section*{Syntax}
+
+\begin{grammar}
+  <program> ::= \hspace{0pt}\\
+  <function-definition>* \\"begin" <instruction>* "end" <eof>
+
+  <function-definition> ::= \hspace{0pt}\\
+    "function" <identifier> "begin" <instruction>* "end"
+
+  <instruction> ::= \hspace{0pt}
+  \alt <identifier> ":=" sexpr \astcomment{Variable assignment}
+  \alt "not" <instruction> \astcomment{Negation of result}
+  \alt "nooutput" <instruction> \astcomment{Suppress output}
+  % \alt "(" <instruction> ")" \astcomment{Separate scope}
+  \alt "begin" <instruction>* "end" \astcomment{Group instructions}
+  \alt "if" <instruction> "then" <instruction> "fi"
+  \alt "if" <instruction> "then" <instruction> "else" <instruction> "fi"
+  \alt "for" <identifier> "in" <lexpr> "do" <instruction> "done"
+  \alt "while" <instruction> "do" <instruction> "done"
+  \alt "process" <instruction> \astcomment{Separate scope}
+  \alt "pipe" <instruction> ("into" <instruction>)* "epip"
+  \alt "call" <identifier> \astcomment{Function call}
+  \alt "call" <identifier> <lexpr>
+  \alt <identifier> \astcomment{Utility call}
+  \alt <identifier> <lexpr>
+  \alt "exit" <return-code> \astcomment{Exit program}
+  \alt "return" <return-code> \astcomment{Return from function}
+  \alt "shift" <nat>? \astcomment{Shift arguments}
+
+  <sfrag> ::= \hspace{0pt}
+  \alt <literal> \astcomment{A string literal}
+  \alt <identifier> \astcomment{A variable}
+  \alt "embed" "{" <instruction> "}"
+  \alt "arg" <nat>
+
+  <sexpr> ::= <sfrag>+
+
+  <lfrag> ::= "split"? <sexpr>
+
+  <lexpr> ::= "[" (<lfrag> ("," <lfrag>)*)? "]"
+
+  <return-code> ::= \hspace{0pt}
+  \alt "success"
+  \alt "failure"
+  \alt "previous"
+\end{grammar}
+
+\section*{Concrete semantics}
+
+\[
+  \begin{array}{lr}
+    % \Downarrow \subseteq (\inp \times \ctx \times \sta) \times \textit{instr} \times
+    % (\sta \times \ctx) \times \beta \\
+    \eval\inp\ctx\sta i{\sta'}{\ctx'}\beta &
+      \mathcomment{Instructions}\\
+    \evalwhile r\inp\ctx\sta{i_1}{i_2}{\sta'}{\ctx'}\beta &
+      \mathcomment{While loops} \\
+    \evalforeach r\inp\ctx\sta x{\overline{\textit{s}}}i{\sta'}{\ctx'}\beta &
+      \mathcomment{For loops} \\
+    \evalstring r\inp\ctx\sta{\textit{se}}{\sta'}{\textit{str}}{r'} &
+      \mathcomment{String} \\
+    \evallist\inp\ctx\sta{\textit{le}}{\sta'}{\textit{str}^*} &
+      \mathcomment{String lists} \\
+  \end{array}
+\]
+
+\[
+\begin{array}{rlllr}
+  \inp  &:= & \textsf{in-condition}                                  &: \textit{bool}                                         & \mathcomment{Under condition of \texttt{if}/\texttt{while}/\texttt{not}}\\
+        &   & \textsf{argument}_0                                    &: \textit{string}                                       & \mathcomment{For \texttt{arg 0}}\\
+  \ctx  &:= &\textsf{vars}                                           &: \textit{identifier} \rightarrow \textit{string}       & \mathcomment{Default \texttt{""}} \\
+        &   &\textsf{funcs}                                          &: \textit{identifier} \nrightarrow \textit{instruction} & \mathcomment{Partial function} \\
+        &   &\textsf{arguments}                                      &: \textit{list}\ \textit{string}                        & \mathcomment{For \texttt{arg \emph{n}}}\\
+        &   &\textsf{result}                                         &: \textit{bool}                                         & \mathcomment{Result of the previous instruction} \\
+  \sta  &:= &\textsf{filesystem}                                     &: \textit{filesystem}                                   & \mathcomment{Unspecified in concrete semantics} \\
+        &   &\textsf{stdin}                                          &: \textit{stdin}                                        & \mathcomment{A list of lines} \\
+        &   &\textsf{stdout}                                         &: \textit{stdout}                                       & \mathcomment{A list of lines} \\
+  r     &:  & \textit{bool}                                          &                                                        &\mathcomment{(Default) return value}\\
+  \beta &:= & \multicolumn{2}{l}{\bnormal \mid \bexit \mid \breturn} & \mathcomment{Behaviour of concrete interpretation}\\ \end{array}
+\]
+
+\begin{align*}
+  \func{interp-util}&: \textit{ident} \times \textit{string}* \rightarrow (\sta \rightarrow \sta \times \bool) \cup \textit{instruction} \\
+  \func{res} &: (\textit{code} \times \textit{bool}) \rightarrow \textit{bool} \\
+  \func{res}(c, r) &= \left\{\begin{array}{ll}\top & \text{if}\ c = \text{Success} \\ \bot & \text{if}\ c = \text{Failure} \\ r & \text{if}\ c = \text{Previous}\end{array}\right. \\
+  \func{bhv} &: (\inp \times \textit{bool}) \rightarrow \beta \\
+  \func{bhv}(r, \inp) &= \left\{\begin{array}{ll}\bnormal & \text{if}\ r \lor \get\inp{in-condition} \\ \bexit & \text{else}\end{array}\right.\\
+\end{align*}
+
+\begin{mathpar}
+  \inferrule[Exit]
+  { r = \func{res}(c, \get\ctx{result})
+  \\ \ctx' = \set\ctx{result}r }
+  { \eval\inp\ctx\sta{\texttt{exit}\ c}\sta{\ctx'}\bexit }
+  \quad
+  \inferrule[Return]
+  { r = \func{res}(c,\get\ctx{result}) \\
+    \ctx' = \set\ctx{result}r}
+    {\eval\inp\ctx\sta{\texttt{return}\ c}\sta{\ctx'}\breturn}
+    \\
+  \inferrule[Seq]
+    {\eval\inp\ctx\sta{i_1}{\sta_1}{\ctx_1}\bnormal \\
+     \eval\inp{\sta_1}{\ctx_1}{i_2}{\sta_2}{\ctx_2}{\bhv_2}}
+    {\eval\inp\ctx\sta{i_1\texttt{;} i_2}{\sta_2}{\ctx_2}{\bhv_2}}
+    \\
+  \inferrule[Seq-abort]
+    {\eval\inp\ctx\sta{i_1}{\sta_1}{\ctx_1}{\bhv_1} \\
+     \bhv_1 \in \{\bexit, \breturn\}}
+    {\eval\inp\ctx\sta{i_1\texttt{;} i_2}{\sta_1}{\ctx_1}{\bhv_1}}
+    \\
+  \inferrule[Subshell]
+  {\eval\inp\ctx\sta{i}{\sta'}{\ctx'}\bhv \\
+    \ctx'' = \set\ctx{result}{\get{\ctx'}{result}} \\
+    \beta = \func{bhv}(\get{\ctx'}{result}, \inp)}
+  {\eval\inp\ctx\sta{\texttt( i\texttt)}{\sta'}{\ctx''}\beta}
+  \\
+  \inferrule[Call-utility-atomic]
+    {\evallist\inp\ctx\sta{\textit{le}}{\sta'}{s^*} \\
+      f = \func{interp-util}(id, s^*) \\
+    (\sta'', r) = f (\sta')}
+    {\eval\inp\ctx\sta{\textit{id}\ \textit{le}}{\sta''}{\set\ctx{result}{b}}{\func{bhv}(r, \inp)}}
+  \\
+  \inferrule[Call-utility-complex]
+    {\evallist\inp\ctx\sta{\textit{le}}{\sta'}{s^*} \\
+      i = \func{interp-util}(id, s^*) \\
+     \eval\inp\ctx{\sta'}i{\sta''}{\ctx'}\beta}
+    {\eval\inp\ctx\sta{\textit{id}\ \textit{le}}{\sta''}{\set\ctx{result}{\get{\ctx'}{result}}}{\beta}}
+\end{mathpar}
+
+\end{document}
