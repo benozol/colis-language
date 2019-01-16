@@ -77,6 +77,8 @@ and instruction (fmt:formatter) (i:instruction) : unit =
   | IShift bn ->
      let n = match bn with None -> "" | Some n -> " "^Z.to_string n in
      fprintf fmt "@[shift%s@]" n
+  | ICd arg ->
+     fprintf fmt "@[cd@ %a@]" string_expression arg
 
 and exitcode (fmt:formatter) (c:return_code) =
   match c with
@@ -102,4 +104,3 @@ and function_definition fmt (n, i) =
 and program fmt p =
   List.iter (function_definition fmt) p.function_definitions;
   fprintf fmt "@[<v 2>begin@ %a@ end@]" sequence p.instruction
-
